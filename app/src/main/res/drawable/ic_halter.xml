@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Halter branco centralizado na área segura do ícone adaptativo (108dp) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:fillColor="#FFFFFF" android:pathData="M30,40h6v28h-6z M37,44h5v20h-5z M42,51h24v6h-24z M66,44h5v20h-5z M72,40h6v28h-6z" />
+</vector>

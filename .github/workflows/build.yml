@@ -1,0 +1,46 @@
+name: Gerar APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Configuração da planilha
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          APP_CHAVE: ${{ secrets.APP_CHAVE }}
+        run: |
+          printf 'window.APP_CONFIG = { url: "%s", chave: "%s" };\n' "$APP_URL" "$APP_CHAVE" > app/src/main/assets/config.js
+
+      - name: Chave de assinatura
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+        run: echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/treino.p12"
+
+      - name: Compilar
+        env:
+          KEYSTORE_FILE: ${{ runner.temp }}/treino.p12
+          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
+        run: gradle assembleRelease --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: treino-apk
+          path: app/build/outputs/apk/release/app-release.apk
