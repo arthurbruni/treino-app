@@ -66,6 +66,14 @@
   .folha p { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
   .folha .acoes { display: flex; gap: 10px; margin-top: 14px; }
   .folha .acoes .btn { flex: 1; }
+  .biset { border: 2px solid var(--accent); border-radius: 20px; padding: 12px 10px 10px; margin-top: 18px; }
+  .biset-topo { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 0 4px; }
+  .biset-topo b { color: var(--accent); font-size: 16px; white-space: nowrap; }
+  .biset-topo span { color: var(--muted); font-size: 13px; text-align: right; }
+  .biset .card { margin-top: 10px; }
+  .biset .foto { aspect-ratio: 16 / 9; }
+  .mais { text-align: center; color: var(--accent); font-weight: 700; margin: 6px 0 -4px; }
+  .num { display: inline-flex; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 13px; font-weight: 700; align-items: center; justify-content: center; margin-right: 6px; vertical-align: 2px; }
   .toast { position: fixed; left: 16px; right: 16px; top: 16px; background: #7f1d1d; color: #fee2e2; padding: 12px 14px; border-radius: 12px; display: none; z-index: 10; }
 </style>
 </head>
@@ -180,13 +188,13 @@ function render() {
 
   const letras = e.treinos.map(x => `<button class="${x.letra === atual ? 'ativo' : ''} ${x.letra === e.proximo ? 'prox' : ''}" onclick="trocar('${x.letra}')">${x.letra}</button>`).join('');
 
-  const cards = t.exercicios.map((x, i) => {
+  const cartao = (x, i, ordem) => {
     const foto = x.foto
       ? `<div class="foto" onclick="virar(${i})"><img id="img${i}" src="${esc(x.foto)}" loading="lazy" alt="${esc(x.nome)}" onerror="this.parentNode.innerHTML='<span class=sem>Foto indisponível sem internet</span>'">${/\/0\.jpg$/.test(x.foto) ? '<span class="dica">toque para ver o movimento</span>' : ''}</div>`
       : `<div class="foto"><span class="sem">Sem foto (adicione na aba Fotos do app)</span></div>`;
     return `<div class="card" id="card${i}">${foto}<div class="corpo">
-      <div class="nome"><h3>${esc(x.nome)}</h3>${x.principal ? '<span class="tag">Principal</span>' : ''}</div>
-      <div class="meta">${esc(x.series)} séries × ${esc(x.reps)} reps · descanso ${esc(x.descanso)}</div>
+      <div class="nome"><h3>${ordem ? '<span class="num">' + ordem + '</span>' : ''}${esc(nomeCurto(x.nome))}</h3>${x.principal ? '<span class="tag">Principal</span>' : ''}</div>
+      <div class="meta">${esc(x.series)} séries × ${esc(x.reps)} reps${ordem ? '' : ' · descanso ' + esc(x.descanso)}</div>
       <div class="linha">
         <div class="campo"><label>Carga (kg)</label><div class="stepper">
           <button onclick="somar(${i},-1)">−</button>
@@ -197,7 +205,22 @@ function render() {
       </div>
       <label class="feito"><input type="checkbox" id="f${i}" checked onchange="document.getElementById('card${i}').classList.toggle('off', !this.checked)"> Fiz este exercício</label>
     </div></div>`;
-  }).join('');
+  };
+
+  // Dois exercícios "Biset:" seguidos viram um bloco: um logo após o outro, descanso só depois do par
+  let cards = '', nBiset = 0;
+  for (let i = 0; i < t.exercicios.length; i++) {
+    const x = t.exercicios[i], y = t.exercicios[i + 1];
+    if (ehBiset(x) && y && ehBiset(y)) {
+      nBiset++;
+      cards += `<div class="biset"><div class="biset-topo"><b>Biset ${nBiset}</b>
+        <span>${esc(x.series)} rodadas · sem descanso entre os dois · descanso ${esc(y.descanso)} depois do par</span></div>
+        ${cartao(x, i, 1)}<div class="mais">+ emende direto</div>${cartao(y, i + 1, 2)}</div>`;
+      i++;
+    } else {
+      cards += cartao(x, i, 0);
+    }
+  }
 
   const hist = e.historico && e.historico.length ? `<div class="hist"><h4>Últimos treinos</h4><ul>${e.historico.map(h =>
     `<li><span>${h.dia} · Treino ${h.treino}</span>${h.pulado ? '<span class="pul">Pulado</span>' : `<span>${h.exercicios} exercícios</span>`}</li>`).join('')}</ul></div>` : '';
@@ -215,6 +238,9 @@ function telaErro(msg) {
   document.getElementById('app').innerHTML = `<div class="centro"><div class="grande">📶</div><div>${esc(msg)}</div>
     <button class="btn prim" style="width:100%" onclick="atualizar()">Tentar de novo</button></div>`;
 }
+
+function ehBiset(x) { return /^biset\b/i.test(x.nome); }
+function nomeCurto(nome) { return nome.replace(/^biset\s*:?\s*/i, ''); }
 
 function trocar(l) { atual = l; render(); }
 
