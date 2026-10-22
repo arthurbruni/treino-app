@@ -5,6 +5,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   apk:
     runs-on: ubuntu-latest
@@ -20,12 +23,12 @@ jobs:
         with:
           gradle-version: "8.9"
 
+      # Só o endereço da planilha vai no APK; a chave é colada no celular
       - name: Configuração da planilha
         env:
           APP_URL: ${{ secrets.APP_URL }}
-          APP_CHAVE: ${{ secrets.APP_CHAVE }}
         run: |
-          printf 'window.APP_CONFIG = { url: "%s", chave: "%s" };\n' "$APP_URL" "$APP_CHAVE" > app/src/main/assets/config.js
+          printf 'window.APP_CONFIG = { url: "%s" };\n' "$APP_URL" > app/src/main/assets/config.js
 
       - name: Chave de assinatura
         env:
@@ -42,3 +45,12 @@ jobs:
         with:
           name: treino-apk
           path: app/build/outputs/apk/release/app-release.apk
+
+      # O botão "Atualizar app" procura a release mais nova
+      - name: Publicar versão
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NOTAS: ${{ github.event.head_commit.message }}
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk Treino.apk
+          gh release create "v${{ github.run_number }}" Treino.apk --title "Versão ${{ github.run_number }}" --notes "${NOTAS:-Nova versão}"
