@@ -26,7 +26,9 @@
   .letras button.ativo { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   .letras button.prox:not(.ativo) { border-color: var(--accent); color: var(--text); }
   .card { background: var(--card); border-radius: 16px; margin-top: 14px; overflow: hidden; transition: opacity .2s; }
-  .card.off { opacity: .4; }
+  .card.pronto { box-shadow: 0 0 0 2px var(--accent); }
+  .card.pronto .feito { color: var(--accent); font-weight: 600; }
+  .progresso { margin-top: 6px; color: var(--muted); font-size: 14px; }
   .foto { position: relative; background: #fff; aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center; }
   .foto img { width: 100%; height: 100%; object-fit: contain; }
   .foto .sem { color: #64748b; font-size: 14px; padding: 0 16px; text-align: center; }
@@ -111,6 +113,7 @@
 <script src="config.js"></script>
 <script>
 const CFG = window.APP_CONFIG || {};
+const K_SCROLL = 'treino.scroll';
 const K_ESTADO = 'treino.estado', K_FILA = 'treino.fila', K_CHAVE = 'treino.chave', K_RASCUNHO = 'treino.rascunho';
 const REPO = 'arthurbruni/treino-app';
 
@@ -152,7 +155,7 @@ async function atualizar() {
     if (err.chaveInvalida) { telaChave('Essa chave não foi aceita pela planilha. Confira e cole de novo.'); return; }
     if (!estado) { telaErro('Sem conexão com a planilha. Abra o app de novo quando tiver internet.'); return; }
   }
-  if (!telaFeito) render();
+  if (!telaFeito) render('manter');
 }
 
 function receber(e) {
@@ -207,7 +210,9 @@ function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<':
 function hojeIso() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 function hojeDiaMes() { const d = new Date(); return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0'); }
 
-function render() {
+// modo: 'topo' (trocou de treino), 'manter' (só atualizou os dados), 'restaurar' (app acabou de abrir)
+function render(modo) {
+  const yAntes = window.scrollY;
   telaFeito = false;
   const t = treinoAtual();
   atual = t.letra;
@@ -236,7 +241,7 @@ function render() {
         <div class="campo"><label>Reps feitas</label>
           <input id="r${i}" inputmode="numeric" placeholder="${x.ultimasReps ? 'última: ' + esc(x.ultimasReps) : 'ex.: 8,8,7'}"></div>
       </div>
-      <label class="feito"><input type="checkbox" id="f${i}" checked onchange="document.getElementById('card${i}').classList.toggle('off', !this.checked)"> Fiz este exercício</label>
+      <label class="feito"><input type="checkbox" id="f${i}" onchange="marcarFeito(${i})"> Feito</label>
     </div></div>`;
   };
 
@@ -263,13 +268,38 @@ function render() {
 
   document.getElementById('app').innerHTML = `${topo}${bannerAtualizacao()}
     <div class="hero"><small>${atual === e.proximo ? 'Treino de hoje' : 'Treino escolhido'}</small>
-      <h1>Treino ${t.letra}</h1><h2>Foco: ${esc(t.foco)}</h2></div>
+      <h1>Treino ${t.letra}</h1><h2>Foco: ${esc(t.foco)}</h2><div class="progresso" id="progresso"></div></div>
     <div class="letras">${letras}</div>${avisoRascunho}${cards}
     <button class="btn limpar" onclick="limparTudo()">Limpar tudo</button>${hist}
     <div class="versao">Versão ${versaoApp()} · <a href="#" onclick="procurarAtualizacao(true);return false">Procurar atualização</a></div>`;
   if (retomado) aplicarRascunho();
+  atualizarProgresso();
   document.getElementById('rodape').hidden = false;
-  window.scrollTo(0, 0);
+  const salvo = ler(K_SCROLL);
+  const y = modo === 'manter' ? yAntes
+    : modo === 'restaurar' && salvo && salvo.letra === t.letra ? salvo.y : 0;
+  window.scrollTo(0, y);
+}
+
+// Posição da tela fica guardada para o app reabrir no mesmo exercício
+let timerScroll = null;
+window.addEventListener('scroll', () => {
+  if (telaFeito || !estado) return;
+  clearTimeout(timerScroll);
+  timerScroll = setTimeout(() => gravar(K_SCROLL, { letra: atual, y: Math.round(window.scrollY) }), 300);
+});
+
+function marcarFeito(i) {
+  const f = document.getElementById('f' + i);
+  const card = document.getElementById('card' + i);
+  if (card) card.classList.toggle('pronto', f.checked);
+  atualizarProgresso();
+}
+
+function atualizarProgresso() {
+  const caixas = [...document.querySelectorAll('input[type=checkbox][id^="f"]')];
+  const el = document.getElementById('progresso');
+  if (el && caixas.length) el.textContent = caixas.filter(c => c.checked).length + ' de ' + caixas.length + ' exercícios feitos';
 }
 
 // ---------- rascunho: o que já foi preenchido sobrevive a fechar o app ----------
@@ -293,7 +323,7 @@ function aplicarRascunho() {
     if (el.type === 'checkbox') {
       el.checked = !!v;
       const card = document.getElementById('card' + id.slice(1));
-      if (card) card.classList.toggle('off', !el.checked);
+      if (card) card.classList.toggle('pronto', el.checked);
     } else {
       el.value = v;
     }
@@ -309,7 +339,14 @@ function limparTudo() {
   mostrarAviso('Tudo limpo: cargas voltaram para as atuais e as reps ficaram em branco.');
 }
 
-document.addEventListener('input', ev => { if (/^[cr]\d+$/.test(ev.target.id)) salvarRascunho(); });
+// Preencher as reps já marca o exercício como feito
+document.addEventListener('input', ev => {
+  if (!/^[cr]\d+$/.test(ev.target.id)) return;
+  const i = ev.target.id.slice(1);
+  const f = document.getElementById('f' + i);
+  if (ev.target.id[0] === 'r' && ev.target.value.trim() && f && !f.checked) { f.checked = true; marcarFeito(i); }
+  salvarRascunho();
+});
 document.addEventListener('change', ev => { if (/^[crf]\d+$/.test(ev.target.id)) salvarRascunho(); });
 
 // "22/10" vira "qua, 22/10 · ontem"
@@ -357,9 +394,9 @@ function salvar() {
     if (!document.getElementById('f' + i).checked) return;
     itens.push({ nome: x.nome, carga: num(document.getElementById('c' + i).value), reps: document.getElementById('r' + i).value.trim() });
   });
-  if (!itens.length) { mostrarErro('Marque pelo menos um exercício, ou use Pular.'); return; }
+  if (!itens.length) { mostrarErro('Marque como Feito os exercícios que você fez (ou preencha as reps), ou use Pular.'); return; }
   registrar({ acao: 'salvar', letra: t.letra, itens: itens, data: hojeIso() },
-    `Treino ${t.letra} salvo`, `${itens.length} exercícios anotados.`);
+    `Treino ${t.letra} salvo`, `${itens.length} de ${t.exercicios.length} exercícios anotados.`);
 }
 
 function abrirPular() { document.getElementById('mLetra').textContent = atual; document.getElementById('motivo').value = ''; document.getElementById('modal').classList.add('on'); }
@@ -446,7 +483,7 @@ async function procurarAtualizacao(manual) {
     const apk = (rel.assets || []).find(a => /\.apk$/i.test(a.name));
     if (apk && numero > versaoApp()) {
       novaVersao = { numero: numero, url: apk.browser_download_url };
-      if (!telaFeito && estado) render();
+      if (!telaFeito && estado) render('manter');
       if (manual) mostrarAviso('Tem versão nova: toque em Atualizar app.');
     } else if (manual) {
       mostrarAviso('Você já está na versão mais nova.');
@@ -472,7 +509,7 @@ window.fimAtualizacao = msg => {
 };
 
 // Abre na hora com o que estava guardado e depois atualiza pela planilha
-if (estado && chave()) render();
+if (estado && chave()) render('restaurar');
 atualizar();
 procurarAtualizacao(false);
 </script>
